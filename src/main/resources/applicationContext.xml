@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                          http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd http://www.springframework.org/schema/aop https://www.springframework.org/schema/aop/spring-aop.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd">
+<!--    ====================开启注解扫描(不扫描SpringMVC的Controller注解)-->
+    <context:component-scan base-package="com.atguigu">
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    </context:component-scan>
+    
+    <!--======================数据源采用Druid的===========================-->
+         <!--    引入jdbc.properties-->
+    <context:property-placeholder location="classpath:jdbc.properties"/>
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource">
+        <property name="driverClassName" value="${jdbc.driverClassName}"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+    </bean>
+
+
+
+    <!--===================整合Spring和Mybatis========-->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <!--    引入mybatis mapper配置-->
+        <property name="mapperLocations" value="classpath:mapper/*.xml"/>
+<!--        指定Mybatis全局配置文件的位置-->
+        <property name="configLocation" value="classpath:mybatisConfig.xml"/>
+    </bean>
+<!--    将Mybatis的dao实现加入到ioc容器中-->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.atguigu.dao"/>
+    </bean>
+<!--=================生成SqlSession对象实现批量的操作=============-->
+    <bean id="sqlSession" class="org.mybatis.spring.SqlSessionTemplate">
+        <constructor-arg name="sqlSessionFactory" ref="sqlSessionFactory"/>
+<!--        设置批量生成-->
+        <constructor-arg name="executorType" value="BATCH"/>
+    </bean>
+
+<!--    ==========================实现事务控制=================-->
+<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+    <property name="dataSource" ref="dataSource"/>
+ </bean>
+<!--    开启基于注解方式实现事务-->
+    <aop:config>
+<!--        切入点:需要开始的事务方法
+execution(* com.atguigu.service..*(..)):将service层的所有方法都开启事务-->
+        <aop:pointcut id="pointCut" expression="execution(* com.atguigu.service..*(..))"/>
+<!--       ===================== 配置事务增强================================-->
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="pointCut"/>
+    </aop:config>
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+<!--            所有方法都是事务方法-->
+            <tx:method name="*"/>
+<!--            以get开头的方法都是事务方法 ,优化查询只读-->
+            <tx:method name="get*" read-only="true"/>
+        </tx:attributes>
+    </tx:advice>
+</beans>
